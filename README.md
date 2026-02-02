@@ -18,3 +18,13 @@
     * command/sqlExecutor
   * updated
     * cli/InputHandler
+
+- In part 3
+  * Added
+    * model/Row
+    * model/Table
+  * Updated
+    * command/sqlCompiler
+    * command/insertCommand
+    * command/selectCommand
+    * command/sqlExecutor
