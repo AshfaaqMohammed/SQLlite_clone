@@ -1,6 +1,5 @@
 package cli;
 
-import command.MetaCommandProcessor;
 import command.SqlCommand;
 import command.SqlCompiler;
 import command.SqlExecutor;
@@ -8,28 +7,35 @@ import command.SqlExecutor;
 import java.util.Optional;
 
 public class InputHandler {
-    private final MetaCommandProcessor metaProcessor = new MetaCommandProcessor();
     private final SqlCompiler compiler = new SqlCompiler();
-    private final SqlExecutor executor = new SqlExecutor();
+    private final SqlExecutor executor;
 
-    public void handle(String input){
+    public InputHandler(SqlExecutor executor){
+        this.executor = executor;
+    }
+
+    public boolean handle(String input) throws Exception {
         if (input.isEmpty()){
-            return;
+            return true;
         }
 
         if (input.startsWith(".")){
-            if (!metaProcessor.process(input)){
+            if (input.equals(".exit")){
+                System.out.println("Exiting...");
+            }else{
                 System.out.printf("Unrecognized command '%s' %n",input);
             }
-            return;
+            return false;
         }
 
         Optional<SqlCommand> statementOpt = compiler.compile(input);
         if (statementOpt.isEmpty()){
             System.out.printf("Unrecognized statement '%s' %n",input);
-            return;
+            return true;
         }
+        System.out.println(statementOpt.get());
         executor.execute(statementOpt.get());
+        return true;
     }
 
 }

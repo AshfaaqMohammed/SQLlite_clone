@@ -28,3 +28,10 @@
     * command/insertCommand
     * command/selectCommand
     * command/sqlExecutor
+
+- In part 4
+  * added
+  * updated
+    * command/sqlCompiler
+
+inserting is happening but persistance is not successfull, we need to look into it, bug is in table cunstroctor.

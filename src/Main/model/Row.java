@@ -1,6 +1,11 @@
 package model;
 
 public class Row {
+
+    public static final int MAX_USERNAME_LENGTH = 32;
+    public static final int MAX_EMAIL_LENGTH = 255;
+    public static final int ROW_SIZE = Integer.BYTES + MAX_USERNAME_LENGTH + MAX_EMAIL_LENGTH;
+
     private int id;
     private String username;
     private String email;
