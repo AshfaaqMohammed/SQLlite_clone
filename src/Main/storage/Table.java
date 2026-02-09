@@ -14,23 +14,39 @@ public class Table {
     private final int rowsPerPage;
     private int numRows;
 
-    public Table(Pager pager) throws IOException {
+    public Table(Pager pager) throws Exception {
         this.pager = pager;
         this.rowsPerPage = Pager.PAGE_SIZE / Row.ROW_SIZE;
-        System.out.println("rowsPerPage - "+rowsPerPage);
 
-        long fileSize = pager.getChannel().size();
-        System.out.println("filesize = " + fileSize);
-        long fullPages = fileSize/Pager.PAGE_SIZE;
-        int rowsFromFullPages = (int) (fullPages * rowsPerPage);
-        long remaining = fileSize % Pager.PAGE_SIZE;
-        int rowsInPartialPage = (int) (remaining / Row.ROW_SIZE);
-        this.numRows = rowsFromFullPages + rowsInPartialPage;
-        System.out.println("Iniaital rows = " + numRows);
+        if (pager.getChannel().size() == 0){
+            // brand new DB file -> initialize metadata page
+            ByteBuffer meta = pager.getPage(0);
+            meta.position(0);
+            meta.putInt(0);
+            pager.flushAll();
+        }
+
+        //load numRows from metadata
+        ByteBuffer meta = pager.getPage(0);
+        meta.position(0);
+        this.numRows = meta.getInt();
+        System.out.println("num of rows - " + numRows);
+    }
+
+    public int getNumRows(){
+        return numRows;
+    }
+
+    public int getRowsPerPage(){
+        return rowsPerPage;
+    }
+
+    public Pager getPager(){
+        return pager;
     }
 
     public boolean insertRow(Row row) throws Exception{
-        int pageNum = numRows / rowsPerPage;
+        int pageNum = (numRows / rowsPerPage)+1;
         int rowOffset = numRows % rowsPerPage;
         ByteBuffer page = pager.getPage(pageNum);
 
@@ -38,21 +54,21 @@ public class Table {
         serializeRow(row, page, writePos);
 
         numRows++;
+        ByteBuffer meta = pager.getPage(0);
+        meta.position(0);
+        meta.putInt(numRows);
         return true;
     }
 
     public List<Row> getAllRows() throws Exception{
-        System.out.println("in getallrows method");
         List<Row> result = new ArrayList<>();
 
-        for (int i=0; i<numRows; i++){
-            int pageNum = i/rowsPerPage;
-            int rowOffSet = i % rowsPerPage;
-            ByteBuffer page = pager.getPage(pageNum);
-            int readPos = rowOffSet * Row.ROW_SIZE;
-            Row row = deserializeRow(page, readPos);
-            result.add(row);
+        Cursor cursor = new Cursor(this,0);
+        while (!cursor.isEnd()){
+            result.add(cursor.getRow());
+            cursor.advance();
         }
+
         return result;
     }
 
@@ -71,7 +87,7 @@ public class Table {
         }
     }
 
-    private Row deserializeRow(ByteBuffer page, int pos){
+    Row deserializeRow(ByteBuffer page, int pos){
         page.position(pos);
         int id = page.getInt();
         String username = getString(page, Row.MAX_USERNAME_LENGTH);

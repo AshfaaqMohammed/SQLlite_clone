@@ -33,7 +33,6 @@ public class InputHandler {
             System.out.printf("Unrecognized statement '%s' %n",input);
             return true;
         }
-        System.out.println(statementOpt.get());
         executor.execute(statementOpt.get());
         return true;
     }
