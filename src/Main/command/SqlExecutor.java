@@ -1,6 +1,9 @@
 package command;
 
+import storage.PageDumper;
 import storage.Table;
+
+import java.nio.ByteBuffer;
 
 public class SqlExecutor {
 
@@ -17,5 +20,12 @@ public class SqlExecutor {
         }else{
             System.out.println("Unknown command type.");
         }
+    }
+    public void printBtree() throws Exception {
+        table.printBTree();
+    }
+    public void printHextree() throws Exception{
+        ByteBuffer page = table.getPager().getPage(1);
+        PageDumper.dumpPage(page);
     }
 }

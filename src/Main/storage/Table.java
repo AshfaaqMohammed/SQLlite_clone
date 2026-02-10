@@ -2,6 +2,7 @@ package storage;
 
 
 import model.Row;
+import storage.btree.LeafNode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -11,34 +12,15 @@ import java.util.List;
 
 public class Table {
     private final Pager pager;
-    private final int rowsPerPage;
-    private int numRows;
 
     public Table(Pager pager) throws Exception {
         this.pager = pager;
-        this.rowsPerPage = Pager.PAGE_SIZE / Row.ROW_SIZE;
 
         if (pager.getChannel().size() == 0){
-            // brand new DB file -> initialize metadata page
-            ByteBuffer meta = pager.getPage(0);
-            meta.position(0);
-            meta.putInt(0);
+            ByteBuffer root = pager.getPage(1);
+            LeafNode.initializeLeafNode(root,true);
             pager.flushAll();
         }
-
-        //load numRows from metadata
-        ByteBuffer meta = pager.getPage(0);
-        meta.position(0);
-        this.numRows = meta.getInt();
-        System.out.println("num of rows - " + numRows);
-    }
-
-    public int getNumRows(){
-        return numRows;
-    }
-
-    public int getRowsPerPage(){
-        return rowsPerPage;
     }
 
     public Pager getPager(){
@@ -46,64 +28,46 @@ public class Table {
     }
 
     public boolean insertRow(Row row) throws Exception{
-        int pageNum = (numRows / rowsPerPage)+1;
-        int rowOffset = numRows % rowsPerPage;
-        ByteBuffer page = pager.getPage(pageNum);
-
-        int writePos = rowOffset * Row.ROW_SIZE;
-        serializeRow(row, page, writePos);
-
-        numRows++;
-        ByteBuffer meta = pager.getPage(0);
-        meta.position(0);
-        meta.putInt(numRows);
+        ByteBuffer root = pager.getPage(1);
+        LeafNode.insert(root,row.getId(),row);
         return true;
     }
 
     public List<Row> getAllRows() throws Exception{
-        List<Row> result = new ArrayList<>();
+        List<Row> rows = new ArrayList<>();
+        Cursor cursor = new Cursor(this);
 
-        Cursor cursor = new Cursor(this,0);
-        while (!cursor.isEnd()){
-            result.add(cursor.getRow());
+        while(!cursor.isEnd()){
+            rows.add(cursor.getRow());
             cursor.advance();
         }
-
-        return result;
-    }
-
-    private void serializeRow(Row row, ByteBuffer page, int pos){
-        page.position(pos);
-        page.putInt(row.getId());
-        putString(page, row.getUsername(), Row.MAX_USERNAME_LENGTH);
-        putString(page, row.getEmail(), Row.MAX_EMAIL_LENGTH);
-    }
-
-    private void putString(ByteBuffer page, String s, int maxLen){
-        byte[] data = s.getBytes(StandardCharsets.UTF_8);
-        page.put(data);
-        if (data.length < maxLen){
-            page.put(new byte[maxLen-data.length]);
-        }
-    }
-
-    Row deserializeRow(ByteBuffer page, int pos){
-        page.position(pos);
-        int id = page.getInt();
-        String username = getString(page, Row.MAX_USERNAME_LENGTH);
-        String email = getString(page, Row.MAX_EMAIL_LENGTH);
-        return new Row(id,username,email);
-    }
-
-    private String getString(ByteBuffer page, int maxLen){
-        byte[] bytes = new byte[maxLen];
-        page.get(bytes);
-        return new String(bytes, StandardCharsets.UTF_8).trim();
+        return rows;
     }
 
     public void close() throws Exception{
         pager.close();
     }
 
+    public void printBTree() throws Exception {
+        System.out.println("B-Tree Leaf Node Visualization");
+        ByteBuffer page = pager.getPage(1);
 
+        // Node header
+        System.out.println("Node type      : LEAF");
+        System.out.println("Is root        : true");
+        int numCells = LeafNode.getNumCells(page);
+        System.out.println("num_cells      : " + numCells);
+
+        // Print each cell: key and full row
+        for (int i = 0; i < numCells; i++) {
+            int key = LeafNode.getKey(page, i);
+            Row row = LeafNode.readValue(page, i);
+
+            System.out.println("  - cell " + i);
+            System.out.println("      key      : " + key);
+            System.out.println("      row.id   : " + row.getId());
+            System.out.println("      username : " + row.getUsername());
+            System.out.println("      email    : " + row.getEmail());
+        }
+    }
 }

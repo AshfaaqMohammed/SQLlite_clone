@@ -22,7 +22,12 @@ public class InputHandler {
         if (input.startsWith(".")){
             if (input.equals(".exit")){
                 System.out.println("Exiting...");
-            }else{
+            }else if (input.startsWith(".btree")){
+                executor.printBtree();
+            }else if (input.startsWith(".hexdump")){
+                executor.printHextree();
+            }
+            else{
                 System.out.printf("Unrecognized command '%s' %n",input);
             }
             return false;

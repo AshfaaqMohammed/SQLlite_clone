@@ -1,0 +1,132 @@
+package storage.btree;
+
+
+import model.Row;
+import storage.Pager;
+
+import javax.swing.plaf.PanelUI;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.PublicKey;
+
+public class LeafNode {
+    private LeafNode(){
+
+    }
+
+    /*-------------------Header layout-------------------------------- */
+
+    public static final byte NODE_TYPE_LEAF = 1;
+
+    public static final int NODE_TYPE_SIZE = 1;
+    public static final int IS_ROOT_SIZE = 1;
+    public static final int NUM_CELLS_SIZE = 4;
+
+    public static final int NODE_TYPE_OFFSET = 0;
+    public static final int IS_ROOT_OFFSET = NODE_TYPE_OFFSET + NODE_TYPE_SIZE;
+    public static final int NUM_CELLS_OFFSET = IS_ROOT_OFFSET + IS_ROOT_SIZE;
+
+    public static final int LEAF_NODE_HEADER_SIZE = NODE_TYPE_SIZE + IS_ROOT_SIZE + NUM_CELLS_SIZE;
+
+    /*-------------------Cell layout-------------------------------- */
+
+    public static final int  LEAF_NODE_KEY_SIZE = Integer.BYTES;
+    public static final int LEAF_NODE_VALUE_SIZE = Row.ROW_SIZE;
+
+    public static final int LEAF_NODE_CELL_SIZE = LEAF_NODE_KEY_SIZE + LEAF_NODE_VALUE_SIZE;
+
+    public static final int LEAF_NODE_SPACE_FOR_CELLS = Pager.PAGE_SIZE - LEAF_NODE_HEADER_SIZE;
+
+    private final static int LEAF_NODE_MAX_CELLS = LEAF_NODE_SPACE_FOR_CELLS / LEAF_NODE_CELL_SIZE;
+
+    private static int cellOffset(int cellNum){
+        return LEAF_NODE_HEADER_SIZE + cellNum * LEAF_NODE_CELL_SIZE;
+    }
+
+    private static int keyOffSet(int cellNum){
+        return cellOffset(cellNum);
+    }
+
+    private static int valueOffset(int cellNum){
+        return cellOffset(cellNum) + LEAF_NODE_KEY_SIZE;
+    }
+
+    /*-------------------Header helpers-------------------------------- */
+    public static int getNumCells(ByteBuffer page){
+        return page.getInt(NUM_CELLS_OFFSET);
+    }
+
+    public static void setNumCells(ByteBuffer page, int value){
+        page.putInt(NUM_CELLS_OFFSET, value);
+    }
+
+    public static void initializeLeafNode(ByteBuffer page, boolean isRoot){
+        page.put(NODE_TYPE_OFFSET,NODE_TYPE_LEAF);
+        page.put(IS_ROOT_OFFSET, (byte) (isRoot ? 1 : 0));
+        setNumCells(page,0);
+    }
+
+    /*------------------- Key / value helpers -------------------------------- */
+    public static int getKey(ByteBuffer page, int cellNum){
+        return page.getInt(keyOffSet(cellNum));
+    }
+
+    private static void setKey(ByteBuffer page, int cellNum, int key){
+        page.putInt(keyOffSet(cellNum),key);
+    }
+
+    public static Row readValue(ByteBuffer page, int cellNum){
+        page.position(valueOffset(cellNum));
+        int id = page.getInt();
+        String username = readString(page, Row.MAX_USERNAME_LENGTH);
+        String email = readString(page, Row.MAX_EMAIL_LENGTH);
+        return new Row(id,username,email);
+    }
+    private static void writeValue(ByteBuffer page, int cellNum, Row row){
+        page.position(valueOffset(cellNum));
+        page.putInt(row.getId());
+        writeString(page, row.getUsername(),Row.MAX_USERNAME_LENGTH);
+        writeString(page, row.getEmail(),Row.MAX_EMAIL_LENGTH);
+    }
+
+    /*-------------------  Insert logic -------------------------------- */
+    public static void insert(ByteBuffer page, int key, Row row){
+        int numCells = getNumCells(page);
+
+        if (numCells >= LEAF_NODE_MAX_CELLS){
+            throw new IllegalStateException("LeafNode full (split not implemented)");
+        }
+
+        int insertPos = 0;
+        while (insertPos < numCells && getKey(page,insertPos) < key){
+            insertPos ++;
+        }
+
+        for (int i = numCells; i> insertPos; i--){
+            byte[] cell = new byte[LEAF_NODE_CELL_SIZE];
+            page.position(cellOffset(i-1));
+            page.get(cell);
+            page.position(cellOffset(i));
+            page.put(cell);
+        }
+
+        setKey(page, insertPos, key);
+        writeValue(page, insertPos, row);
+        setNumCells(page, numCells +1);
+    }
+
+    private static void writeString(ByteBuffer page, String s, int maxLen){
+        byte[] data = s.getBytes(StandardCharsets.UTF_8);
+        page.put(data);
+        if (data.length < maxLen){
+            page.put(new byte[maxLen - data.length]);
+        }
+    }
+
+    private static String readString(ByteBuffer page, int maxLen){
+        byte[] data = new byte[maxLen];
+        page.get(data);
+        return new String(data, StandardCharsets.UTF_8).trim();
+    }
+}
