@@ -4,9 +4,7 @@ package storage;
 import model.Row;
 import storage.btree.LeafNode;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +27,16 @@ public class Table {
 
     public boolean insertRow(Row row) throws Exception{
         ByteBuffer root = pager.getPage(1);
+        int key = row.getId();
+
+        int insertPos = LeafNode.findInsertPosition(root,key);
+        int numCells = LeafNode.getNumCells(root);
+
+        if (insertPos < numCells && LeafNode.getKey(root,insertPos) == key){
+            System.out.println("Error: Duplicate key " + key);
+            return false;
+        }
+
         LeafNode.insert(root,row.getId(),row);
         return true;
     }

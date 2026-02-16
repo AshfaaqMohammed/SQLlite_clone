@@ -129,4 +129,26 @@ public class LeafNode {
         page.get(data);
         return new String(data, StandardCharsets.UTF_8).trim();
     }
+
+    public static int findInsertPosition(ByteBuffer page, int key){
+        int numCells = getNumCells(page);
+
+        int low = 0;
+        int high = numCells;
+
+        while (low < high){
+            int mid = (low+high)/2;
+            int keyAtMid = getKey(page,mid);
+
+            if (key == keyAtMid){
+                return mid;
+            }
+            if (key < keyAtMid){
+                high = mid;
+            }else{
+                low = mid + 1;
+            }
+        }
+        return low;
+    }
 }
