@@ -22,6 +22,11 @@ public class Pager {
         System.out.println("DB File size: " + channel.size());
     }
 
+    public int getUnusedPageNum() throws Exception{
+        long fileSize = channel.size();
+        return (int) (fileSize / PAGE_SIZE);
+    }
+
     public ByteBuffer getPage(int pageNum) throws Exception{
         if (cache.containsKey(pageNum)){
             return cache.get(pageNum);

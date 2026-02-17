@@ -10,15 +10,27 @@ import java.util.List;
 
 public class Table {
     private final Pager pager;
+    private int rootPageNum;
 
     public Table(Pager pager) throws Exception {
         this.pager = pager;
 
         if (pager.getChannel().size() == 0){
-            ByteBuffer root = pager.getPage(1);
+            this.rootPageNum = 1;
+            ByteBuffer root = pager.getPage(rootPageNum);
             LeafNode.initializeLeafNode(root,true);
             pager.flushAll();
+        }else{
+            this.rootPageNum = 1;
         }
+    }
+
+    public int getRootPageNum(){
+        return rootPageNum;
+    }
+
+    public void setRootPageNum(int rootPageNum){
+        this.rootPageNum = rootPageNum;
     }
 
     public Pager getPager(){
@@ -26,18 +38,22 @@ public class Table {
     }
 
     public boolean insertRow(Row row) throws Exception{
-        ByteBuffer root = pager.getPage(1);
         int key = row.getId();
+        ByteBuffer rootPage = pager.getPage(rootPageNum);
 
-        int insertPos = LeafNode.findInsertPosition(root,key);
-        int numCells = LeafNode.getNumCells(root);
+        int insertPos = LeafNode.findInsertPosition(rootPage,key);
+        int numCells = LeafNode.getNumCells(rootPage);
 
-        if (insertPos < numCells && LeafNode.getKey(root,insertPos) == key){
+        if (insertPos < numCells && LeafNode.getKey(rootPage,insertPos) == key){
             System.out.println("Error: Duplicate key " + key);
             return false;
         }
 
-        LeafNode.insert(root,row.getId(),row);
+        if (numCells >= LeafNode.LEAF_NODE_MAX_CELLS){
+            LeafNode.leafNodeSplitAndInsert(this, rootPageNum,key,row);
+        }else{
+            LeafNode.insert(rootPage, key, row);
+        }
         return true;
     }
 

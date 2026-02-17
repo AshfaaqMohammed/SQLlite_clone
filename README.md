@@ -47,3 +47,10 @@ Bug1 - inserting is happening but persistance is not successfull, we need to loo
 
 last i stopped - to implement part 7 there are total 7 steps, and i need to read that and i need to ask gpt to give complete code directory structure and all the code part of part7 
 tutorial point.
+
+16-02-26 - 
+completed till part 10, but app does not work as expected, cause we need to implement part 11 to run the application as expected.
+    what do i mean app is not working as expected - 
+        insert is happening, but after one page is full, we split the leaf node and create left and right child
+        when we create such, our select operation is still according to liner scan, so when we do select our data
+        look like corrupted, but not, it just that our select logic is not right yet.

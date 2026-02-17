@@ -3,6 +3,7 @@ package storage.btree;
 
 import model.Row;
 import storage.Pager;
+import storage.Table;
 
 import javax.swing.plaf.PanelUI;
 import java.nio.Buffer;
@@ -38,7 +39,11 @@ public class LeafNode {
 
     public static final int LEAF_NODE_SPACE_FOR_CELLS = Pager.PAGE_SIZE - LEAF_NODE_HEADER_SIZE;
 
-    private final static int LEAF_NODE_MAX_CELLS = LEAF_NODE_SPACE_FOR_CELLS / LEAF_NODE_CELL_SIZE;
+    public final static int LEAF_NODE_MAX_CELLS = LEAF_NODE_SPACE_FOR_CELLS / LEAF_NODE_CELL_SIZE;
+
+    /*-------------New constants for splitting node----------------------------*/
+    public static final int LEAF_NODE_RIGHT_SPLIT_COUNT =  (LEAF_NODE_MAX_CELLS + 1) /2;
+    public static final int LEAF_NODE_LEFT_SPLIT_COUNT = LEAF_NODE_MAX_CELLS - LEAF_NODE_RIGHT_SPLIT_COUNT;
 
     private static int cellOffset(int cellNum){
         return LEAF_NODE_HEADER_SIZE + cellNum * LEAF_NODE_CELL_SIZE;
@@ -114,6 +119,91 @@ public class LeafNode {
         setKey(page, insertPos, key);
         writeValue(page, insertPos, row);
         setNumCells(page, numCells +1);
+    }
+
+    public static void leafNodeSplitAndInsert(
+            Table table,
+            int oldPageNum,
+            int key,
+            Row row
+    ) throws Exception{
+        Pager pager = table.getPager();
+
+        //get old page
+        ByteBuffer oldPage = pager.getPage(oldPageNum);
+
+        // create/allocate new page
+        int newPageNum = pager.getUnusedPageNum();
+        ByteBuffer newPage = pager.getPage(newPageNum);
+
+        initializeLeafNode(newPage, false);
+
+        int oldNumCells = getNumCells(oldPage);
+        int totalCells = oldNumCells + 1;
+
+        int[] keys = new int[totalCells];
+        Row[] rows = new Row[totalCells];
+
+        int insertPos = findInsertPosition(oldPage, key);
+        for(int i=0, j=0; i<totalCells; i++){
+            if (i == insertPos){
+                keys[i] = key;
+                rows[i] = row;
+            }else{
+                keys[i] = getKey(oldPage,j);
+                rows[i] = readValue(oldPage,j);
+                j++;
+            }
+        }
+
+        //reset life page
+        setNumCells(oldPage,0);
+
+        //left half
+        for (int i=0; i < LEAF_NODE_LEFT_SPLIT_COUNT; i++){
+            insert(oldPage, keys[i],rows[i]);
+        }
+
+        //right half
+        for (int i=LEAF_NODE_LEFT_SPLIT_COUNT; i<LEAF_NODE_LEFT_SPLIT_COUNT + LEAF_NODE_RIGHT_SPLIT_COUNT;i++){
+            insert(newPage, keys[i],rows[i]);
+        }
+
+        createNewRoot(table, oldPageNum, newPageNum);
+    }
+
+    public static void createNewRoot(
+            Table table,
+            int leftChildPageNum,
+            int rightChildPageNum
+    )throws Exception{
+        Pager pager = table.getPager();
+
+       int oldRootPageNum = table.getRootPageNum();
+       ByteBuffer oldRoot = pager.getPage(oldRootPageNum);
+
+       int leftCopyPageNum = pager.getUnusedPageNum();
+       ByteBuffer leftCopy = pager.getPage(leftCopyPageNum);
+
+       oldRoot.position(0);
+       oldRoot.limit(Pager.PAGE_SIZE);
+
+       leftCopy.position(0);
+       leftCopy.put(oldRoot);
+       leftCopy.position(0);
+
+       leftCopy.put(LeafNode.IS_ROOT_OFFSET, (byte) 0);
+
+       InternalNode.initializeInternalNode(oldRoot,true);
+
+       InternalNode.setNumKeys(oldRoot,1);
+       InternalNode.setChild(oldRoot,0,leftCopyPageNum);
+
+       int leftMax = LeafNode.getKey(leftCopy, LeafNode.getNumCells(leftCopy)-1);
+       InternalNode.setKey(oldRoot, 0, leftMax);
+       InternalNode.setRightChild(oldRoot, rightChildPageNum);
+
+       table.setRootPageNum(oldRootPageNum);
     }
 
     private static void writeString(ByteBuffer page, String s, int maxLen){
