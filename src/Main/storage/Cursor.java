@@ -19,10 +19,22 @@ public class Cursor {
         ByteBuffer page = table.getPager().getPage(pageNum);
         endOfTable = LeafNode.getNumCells(page) == 0;
     }
+    public Cursor(Table table, int pageNum, int cellNum){
+        this.table = table;
+        this.pageNum = pageNum;
+        this.cellNum = cellNum;
+    }
 
     public Row getRow() throws Exception {
         ByteBuffer page = table.getPager().getPage(pageNum);
         return LeafNode.readValue(page,cellNum);
+    }
+    public int getPageNum(){
+        return pageNum;
+    }
+
+    public int getCellNum(){
+        return cellNum;
     }
 
     public void advance() throws Exception {
@@ -31,6 +43,11 @@ public class Cursor {
         if (cellNum >= LeafNode.getNumCells(page)){
             endOfTable = true;
         }
+    }
+
+    public Row value() throws Exception{
+        ByteBuffer page = table.getPager().getPage(pageNum);
+        return LeafNode.readValue(page, cellNum);
     }
 
     public boolean isEnd(){

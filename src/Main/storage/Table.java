@@ -2,6 +2,7 @@ package storage;
 
 
 import model.Row;
+import storage.btree.InternalNode;
 import storage.btree.LeafNode;
 
 import java.nio.ByteBuffer;
@@ -39,20 +40,21 @@ public class Table {
 
     public boolean insertRow(Row row) throws Exception{
         int key = row.getId();
-        ByteBuffer rootPage = pager.getPage(rootPageNum);
+        Cursor cursor = tableFind(key);
 
-        int insertPos = LeafNode.findInsertPosition(rootPage,key);
-        int numCells = LeafNode.getNumCells(rootPage);
+        ByteBuffer page = pager.getPage(cursor.getPageNum());
 
-        if (insertPos < numCells && LeafNode.getKey(rootPage,insertPos) == key){
-            System.out.println("Error: Duplicate key " + key);
-            return false;
+        if (cursor.getCellNum() < LeafNode.getNumCells(page)){
+            int keyAtIndex = LeafNode.getKey(page, cursor.getCellNum());
+            if( keyAtIndex == key){
+                System.out.println("Duplicate key.");
+                return false;
+            }
         }
-
-        if (numCells >= LeafNode.LEAF_NODE_MAX_CELLS){
-            LeafNode.leafNodeSplitAndInsert(this, rootPageNum,key,row);
+        if (LeafNode.getNumCells(page) >= LeafNode.LEAF_NODE_MAX_CELLS){
+            LeafNode.leafNodeSplitAndInsert(this, cursor.getPageNum(), key, row);
         }else{
-            LeafNode.insert(rootPage, key, row);
+            LeafNode.insert(page, key, row);
         }
         return true;
     }
@@ -66,6 +68,38 @@ public class Table {
             cursor.advance();
         }
         return rows;
+    }
+
+    //part 11
+    public Cursor tableFind(int key)throws Exception{
+        return nodeFind(rootPageNum,key);
+    }
+
+    private Cursor nodeFind(int pageNum, int key) throws Exception{
+        ByteBuffer page = pager.getPage(pageNum);
+        byte nodeType = page.get(0);
+
+        if (nodeType == LeafNode.NODE_TYPE_LEAF){
+            return LeafNode.leafNodeFind(this, pageNum, key);
+        }else{
+            return internalNodeFind(pageNum,key);
+        }
+    }
+
+    private Cursor internalNodeFind(int pageNum, int key) throws Exception{
+        ByteBuffer page = pager.getPage(pageNum);
+        int numKeys = InternalNode.getNumKeys(page);
+
+        int childIndex = 0;
+        while(childIndex < numKeys){
+            int keyToRight = InternalNode.getKey(page, childIndex);
+            if(key <= keyToRight){
+                break;
+            }
+            childIndex++;
+        }
+        int childPageNum = InternalNode.getChild(page,childIndex);
+        return nodeFind(childPageNum, key);
     }
 
     public void close() throws Exception{

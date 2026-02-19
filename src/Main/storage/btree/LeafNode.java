@@ -2,6 +2,7 @@ package storage.btree;
 
 
 import model.Row;
+import storage.Cursor;
 import storage.Pager;
 import storage.Table;
 
@@ -240,5 +241,36 @@ public class LeafNode {
             }
         }
         return low;
+    }
+
+    public static Cursor leafNodeFind(
+            Table table,
+            int pageNum,
+            int key
+    )throws Exception{
+        Pager pager = table.getPager();
+        ByteBuffer page = pager.getPage(pageNum);
+
+        int numCells = getNumCells(page);
+
+        int left = 0;
+        int right = numCells;
+
+        while (left < right){
+            int mid = (left + right) / 2;
+            int keyAtMid = getKey(page, mid);
+
+            if (key == keyAtMid){
+                return new Cursor(table, pageNum, mid);
+            }
+
+            if (key < keyAtMid){
+                right = mid;
+            }else{
+                left = mid + 1;
+            }
+        }
+        return new Cursor(table, pageNum, left);
+
     }
 }

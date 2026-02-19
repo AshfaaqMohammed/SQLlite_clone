@@ -1,5 +1,7 @@
 package command;
 
+import model.Row;
+import storage.Cursor;
 import storage.PageDumper;
 import storage.Table;
 
@@ -16,7 +18,13 @@ public class SqlExecutor {
         if (cmd instanceof InsertCommand insertCommand){
             table.insertRow(insertCommand.getRow());
         }else if (cmd instanceof SelectCommand selectCommand){
-            table.getAllRows().forEach(System.out::println);
+            Cursor cursor = table.tableFind(0);
+
+            while(!cursor.isEnd()){
+                Row row = cursor.value();
+                System.out.println(row);
+                cursor.advance();
+            }
         }else{
             System.out.println("Unknown command type.");
         }
